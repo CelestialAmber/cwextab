@@ -12,7 +12,7 @@ fn example(extab: &[u8]){
   let data = match result {
     Some(val) => val,
     None => {
-      panic!(an error happened);
+      panic!("an error happened");
     },
   };
   //do stuffs
