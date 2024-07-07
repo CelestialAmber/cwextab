@@ -200,7 +200,6 @@ pub struct ExceptionTableData {
 
     pub pc_actions: Vec<PCAction>,
     pub exception_actions: Vec<ExceptionAction>,
-    pub func_names: Vec<String>,
 }
 
 impl ExceptionTableData {
@@ -216,7 +215,6 @@ impl ExceptionTableData {
             et_field: 0,
             pc_actions: vec![],
             exception_actions: vec![],
-            func_names: vec![],
         }
     }
 
@@ -228,13 +226,12 @@ impl ExceptionTableData {
         self.fpr_save_range = ((self.flag_val >> 6) & 0b11111) as u32;
         self.gpr_save_range = ((self.flag_val >> 11) & 0b11111) as u32;
     }
-    
-    fn get_func_name(&self, index : usize) -> Result<String> {
-        if index >= self.func_names.len() { bail!("Invalid function array index"); }
-        Ok(self.func_names[index].clone())
-    }
 
-    fn convert_to_text(&self) -> Option<String> {
+	/// Converts the table into a string, taking in an array of the function
+	/// names required for the table.
+	/// 
+	/// Returns 'None' if an error occurs.
+    pub fn to_string(&self, func_names : &[&str]) -> Option<String> {
         let mut sb = String::from("");
 
         sb += "Flag values:\n";
@@ -461,15 +458,11 @@ impl ExceptionTableData {
                 
                 //If the action references a dtor, print it out using the name array
                 if has_dtor_ref {
-                    let func_name : String = 
-                    match self.get_func_name(func_index) {
-                        Ok(name) => name,
-                        Err(e) => {
-                            println!("{}",e);
-                            return None;
-                        },
-                    };
-                    
+					if func_index >= func_names.len() {
+						println!("Error: Invalid function array index");
+						return None;
+					}
+					let func_name = func_names[func_index];
                     line += format!("\nDtor: \"{func_name}\"").as_str();
                     func_index += 1;
                 }
@@ -501,10 +494,6 @@ impl ExtabDecoder {
             data: vec![],
             length: 0,
         }
-    }
-    
-    fn set_func_names(&mut self, func_names : &[&str]){
-        self.extab_data.func_names = Vec::from(func_names).iter().map(|v| v.to_string()).collect();
     }
 
     fn parse_exception_table(&mut self, bytes: &[u8]) -> Result<()> {
@@ -624,11 +613,6 @@ impl ExtabDecoder {
         self.extab_data.exception_actions.push(exaction);
         Ok(())
     }
-
-    fn convert_to_text(&self) -> Option<String> {
-        let text = self.extab_data.convert_to_text()?;
-        Some(text)
-    }
 }
 
 
@@ -645,22 +629,5 @@ pub fn decode_extab(data : &[u8]) -> Option<ExceptionTableData> {
         return None;
     }
     Some(decoder.extab_data)
-}
-
-/// Decodes the provided exception table data, and returns
-/// it formatted as a string using a provided list of function names.
-///
-/// Returns 'None' if the table or provided function list is not valid
-pub fn decode_extab_to_text(data : &[u8], func_names : &[&str]) -> Option<String> {
-    let mut decoder = ExtabDecoder::new();
-    decoder.set_func_names(func_names);
-    let result = decoder.parse_exception_table(data);
-    if let Err(e) = result {
-        println!("Error: Failed to decode extab data:");
-        println!("{}",e);
-        return None;
-    }
-    let text = decoder.convert_to_text()?;
-    Some(text)
 }
 

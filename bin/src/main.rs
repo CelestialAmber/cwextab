@@ -1,4 +1,4 @@
-use cwextab::{decode_extab, decode_extab_to_text, ExceptionTableData};
+use cwextab::{decode_extab, ExceptionTableData};
 
 
 //Test code
@@ -57,16 +57,6 @@ const EXTAB_FUNCS: [&str; 25] = [
     "__dt__Q22cf12CChainMemberFv",
 ];
 
-fn test_decode_to_string() {
-	let result = decode_extab_to_text(&EXTAB_DATA, &EXTAB_FUNCS);
-    let text : String =
-    match result {
-        Some(val) => val,
-        None => String::from("Something went wrong with decoding :<"),
-    };
-    
-    println!("{}", text);
-}
 
 fn test_decode(){
 	let result = decode_extab(&EXTAB_DATA);
@@ -78,6 +68,18 @@ fn test_decode(){
 		},
     };
 	println!("{}",data.pc_actions[0].action_offset);
+
+	//Convert the table struct to a string and print it.
+	let result = data.to_string(&EXTAB_FUNCS);
+    let text : String =
+    match result {
+        Some(val) => val,
+        None => {
+			panic!("Something went wrong with converting to text :<");
+		},
+    };
+    
+    println!("{}", text);
 }
 
 fn main() {
