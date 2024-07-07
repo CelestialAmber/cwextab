@@ -1,0 +1,12 @@
+[package]
+name = "cwextab-bin"
+version = "1.0.0"
+edition = "2021"
+authors = ["Amber Brault <celestialamber1@gmail.com>"]
+repository = "https://github.com/Celestialamber/cwextab"
+readme = "../README.md"
+description = "CodeWarrior Exception Table decoder (binary)"
+rust-version = "1.58"
+
+[dependencies]
+cwextab = { path = "../lib", version = "1.0.0" }
