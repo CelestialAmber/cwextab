@@ -187,20 +187,20 @@ impl Default for PCAction {
 }
 
 pub struct ExceptionTableData {
-    flag_val: u16, //0x0-1
+    pub flag_val: u16, //0x0-1
     //Flag bits (16 bit value)
-    has_elf_vector: bool,    //bit 1
-    large_frame: bool,      //bit 3
-    has_frame_pointer: bool, //bit 4
-    saved_cr: bool,         //bit 5
-    fpr_save_range: u32,     //bits 6-10
-    gpr_save_range: u32,     //bits 11-15
+    pub has_elf_vector: bool,    //bit 1
+    pub large_frame: bool,      //bit 3
+    pub has_frame_pointer: bool, //bit 4
+    pub saved_cr: bool,         //bit 5
+    pub fpr_save_range: u32,     //bits 6-10
+    pub gpr_save_range: u32,     //bits 11-15
 
-    et_field: u16, //0x2-3
+    pub et_field: u16, //0x2-3
 
-    pc_actions: Vec<PCAction>,
-    exception_actions: Vec<ExceptionAction>,
-    func_names: Vec<String>,
+    pub pc_actions: Vec<PCAction>,
+    pub exception_actions: Vec<ExceptionAction>,
+    pub func_names: Vec<String>,
 }
 
 impl ExceptionTableData {

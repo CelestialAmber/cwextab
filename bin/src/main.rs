@@ -1,4 +1,4 @@
-use cwextab::decode_extab_to_text;
+use cwextab::{decode_extab, decode_extab_to_text, ExceptionTableData};
 
 
 //Test code
@@ -57,7 +57,7 @@ const EXTAB_FUNCS: [&str; 25] = [
     "__dt__Q22cf12CChainMemberFv",
 ];
 
-fn test() {
+fn test_decode_to_string() {
 	let result = decode_extab_to_text(&EXTAB_DATA, &EXTAB_FUNCS);
     let text : String =
     match result {
@@ -68,6 +68,19 @@ fn test() {
     println!("{}", text);
 }
 
+fn test_decode(){
+	let result = decode_extab(&EXTAB_DATA);
+	let data: ExceptionTableData =
+    match result {
+        Some(val) => val,
+        None => { 
+			panic!("Something went wrong with decoding :<");
+		},
+    };
+	println!("{}",data.pc_actions[0].action_offset);
+}
+
 fn main() {
-	println!("WIP, not meant to be used yet.");
+	//println!("WIP, not meant to be used yet.");
+	test_decode();
 }
