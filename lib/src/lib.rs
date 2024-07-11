@@ -4,7 +4,7 @@ mod mem_utils;
 
 
 /// Enum holding the data for each action type.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum ExActionData {
     EndOfList,
     Branch{
@@ -86,7 +86,7 @@ pub enum ExActionData {
 }
 
 /// Base enum for exception actions.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ExAction {
     EndOfList,
     Branch,
@@ -181,8 +181,8 @@ impl ExAction {
     }
 }
 
-/// Holds data for exception action entries.
-#[derive(Clone)]
+/// Struct for exception actions.
+#[derive(Debug, Clone)]
 pub struct ExceptionAction {
     //General values
     pub action_offset: u32,
@@ -333,7 +333,8 @@ impl Default for ExceptionAction {
     }
 }
 
-#[derive(Clone)]
+/// Struct for pc actions.
+#[derive(Debug, Clone)]
 pub struct PCAction {
     pub start_pc: u32,
     pub end_pc: u32,
@@ -357,6 +358,7 @@ impl Default for PCAction {
 }
 
 /// Struct containing all the data from the decoded exception table.
+#[derive(Debug)]
 pub struct ExceptionTableData {
     pub flag_val: u16, //0x0-1
     //Flag bits (16 bit value)
