@@ -358,7 +358,7 @@ impl Default for PCAction {
 }
 
 /// Struct containing all the data from the decoded exception table.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExceptionTableData {
     pub flag_val: u16, //0x0-1
     //Flag bits (16 bit value)
