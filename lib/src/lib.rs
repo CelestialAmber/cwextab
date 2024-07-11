@@ -1,33 +1,90 @@
-use anyhow::Result;
-use anyhow::bail;
+use anyhow::{Result, bail};
 
-fn read_byte(data: &[u8], offset: &mut i32, update_offset: bool) -> u8 {
-    let index = *offset as usize;
-    let b = data[index];
-    if update_offset {
-        *offset += 1;
-    }
-    b
+mod mem_utils;
+
+
+/// Enum holding the data for each action type.
+#[derive(Copy, Clone)]
+pub enum ExActionData {
+    EndOfList,
+    Branch{
+		target_offset : u16,
+	},
+    DestroyLocal{
+		local_offset : u16,
+		dtor_address : u32,
+	},
+    DestroyLocalCond{
+		condition : u16,
+		local_offset : u16,
+		dtor_address : u32,
+	},
+    DestroyLocalPointer{
+		local_pointer : u16,
+		dtor_address : u32,
+	},
+    DestroyLocalArray{
+		local_array : u16,
+		elements : u16,
+		element_size : u16,
+		dtor_address : u32,
+	},
+    DestroyBase{
+		object_pointer : u16,
+		member_offset : u32,
+		dtor_address : u32,
+	},
+    DestroyMember{
+		object_pointer : u16,
+		member_offset : u32,
+		dtor_address : u32,
+	},
+    DestroyMemberCond{
+		condition : u16,
+		object_pointer : u16,
+		member_offset : u32,
+		dtor_address : u32,
+	},
+    DestroyMemberArray{
+		object_pointer : u16,
+		member_offset : u32,
+		elements : u32,
+		element_size : u32,
+		dtor_address : u32,
+	},
+    DeletePointer{
+		object_pointer : u16,
+		dtor_address : u32,
+	},
+    DeletePointerCond{
+		condition : u16,
+		object_pointer : u16,
+		dtor_address : u32,
+	},
+    CatchBlock{
+		unk0 : u16,
+		catch_type : u32,
+		catch_pc_offset : u16,
+		cinfo_ref : u16,
+	},
+    ActiveCatchBlock{
+		cinfo_ref : u16,
+	},
+    Terminate,
+    Specification{
+		specs : u16,
+		pc_offset : u32,
+		cinfo_ref : u32,
+	},
+    CatchBlock32{
+		unk0 : u16,
+		catch_type : u32,
+		catch_pc_offset : u32,
+		cinfo_ref : u32,
+	},
 }
 
-fn read_uint16(data: &[u8], offset: &mut i32, update_offset: bool) -> u16 {
-    let index = *offset as usize;
-    let bytes = data[index..index + 2].try_into().unwrap();
-    if update_offset {
-        *offset += 2;
-    }
-    u16::from_be_bytes(bytes)
-}
-
-fn read_uint32(data: &[u8], offset: &mut i32, update_offset: bool) -> u32 {
-    let index = *offset as usize;
-    let bytes = data[index..index + 4].try_into().unwrap();
-    if update_offset {
-        *offset += 4;
-    }
-    u32::from_be_bytes(bytes)
-}
-
+/// Base enum for exception actions.
 #[derive(Copy, Clone)]
 pub enum ExAction {
     EndOfList,
@@ -98,18 +155,6 @@ impl ExAction {
         Ok(result)
     }
     
-    pub fn has_dtor_ref(action : ExAction) -> bool {
-        match action {
-            ExAction::EndOfList => {
-                println!("Warning: null action passed");
-                false
-            },
-            ExAction::Branch | ExAction::CatchBlock | ExAction::ActiveCatchBlock |
-            ExAction::Terminate | ExAction::Specification | ExAction::CatchBlock32 => false,
-            _ => true,
-        }
-    }
-    
     const ACTION_NAMES: [&'static str; 17] = [
         "NULL",
         "BRANCH",
@@ -135,6 +180,7 @@ impl ExAction {
     }
 }
 
+/// Holds data for exception action entries.
 #[derive(Clone)]
 pub struct ExceptionAction {
     //General values
@@ -155,6 +201,178 @@ impl ExceptionAction {
             bytes: vec![],
         }
     }
+
+	/// Returns whether this action has a destuctor reference or not.
+	pub fn has_dtor_ref(&self) -> bool {
+        match self.action_type {
+            ExAction::EndOfList => {
+                println!("Warning: null action passed");
+                false
+            },
+            ExAction::Branch | ExAction::CatchBlock | ExAction::ActiveCatchBlock |
+            ExAction::Terminate | ExAction::Specification | ExAction::CatchBlock32 => false,
+            _ => true,
+        }
+    }
+
+	/// Decodes the action data from the byte array depending on the set action type, and converts it
+	/// to an ExActionData enum containing the decoded data.
+	pub fn get_exaction_data(&self) -> ExActionData {
+		let mut offset : i32 = 0;
+
+		match self.action_type {
+			ExAction::EndOfList => ExActionData::EndOfList {},
+            ExAction::Branch => {
+				let target_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				ExActionData::Branch {
+					target_offset: target_offset
+				}
+			},
+            ExAction::DestroyLocal => {
+				let local_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyLocal {
+					local_offset: local_offset,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyLocalCond => {
+				let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let local_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyLocalCond {
+					condition: condition,
+					local_offset: local_offset,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyLocalPointer => {
+				let local_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyLocalPointer {
+					local_pointer: local_pointer,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyLocalArray => {
+				let local_array = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let elements = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let element_size = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyLocalArray {
+					local_array: local_array,
+					elements: elements,
+					element_size: element_size,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyBase => {
+				let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let member_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyBase {
+					object_pointer: object_pointer,
+					member_offset: member_offset,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyMember => {
+				let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let member_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyMember {
+					object_pointer: object_pointer,
+					member_offset: member_offset,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyMemberCond => {
+				let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let member_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyMemberCond {
+					condition: condition,
+					object_pointer: object_pointer,
+					member_offset: member_offset,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DestroyMemberArray => {
+				let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let member_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				let elements = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				let element_size = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DestroyMemberArray {
+					object_pointer: object_pointer,
+					member_offset: member_offset,
+					elements: elements,
+					element_size: element_size,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DeletePointer => {
+				let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DeletePointer {
+					object_pointer: object_pointer,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::DeletePointerCond => {
+				let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::DeletePointerCond {
+					condition: condition,
+					object_pointer: object_pointer,
+					dtor_address: dtor_address
+				}
+			},
+            ExAction::CatchBlock => {
+				let unk0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let catch_type = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let catch_pc_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let cinfo_ref = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				ExActionData::CatchBlock {
+					unk0: unk0,
+					catch_type: catch_type,
+					catch_pc_offset: catch_pc_offset,
+					cinfo_ref: cinfo_ref
+				}
+			},
+            ExAction::ActiveCatchBlock => {
+				let cinfo_ref = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				ExActionData::ActiveCatchBlock {
+					cinfo_ref: cinfo_ref
+				}
+			},
+            ExAction::Terminate => ExActionData::Terminate {},
+            ExAction::Specification => {
+				let specs = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let pc_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				let cinfo_ref = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::Specification {
+					specs: specs,
+					pc_offset: pc_offset,
+					cinfo_ref: cinfo_ref
+				}
+			},
+            ExAction::CatchBlock32 => {
+				let unk0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+				let catch_type = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let catch_pc_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+                let cinfo_ref = mem_utils::read_uint32(&self.bytes, &mut offset, true);
+				ExActionData::CatchBlock32 {
+					unk0: unk0,
+					catch_type: catch_type,
+					catch_pc_offset: catch_pc_offset,
+					cinfo_ref: cinfo_ref
+				}
+			},
+		}
+	}
 }
 
 impl Default for ExceptionAction {
@@ -186,6 +404,7 @@ impl Default for PCAction {
     }
 }
 
+/// Struct containing all the data from the decoded exception table.
 pub struct ExceptionTableData {
     pub flag_val: u16, //0x0-1
     //Flag bits (16 bit value)
@@ -296,24 +515,18 @@ impl ExceptionTableData {
                 let action_name = action.action_type.convert_to_string();
                 line += format!("{action_offset:06X}:\nType: {action_name}\n").as_str();
                 
-                let mut data_offset: i32 = 0;
-                let has_dtor_ref = ExAction::has_dtor_ref(action.action_type);
+                let has_dtor_ref = action.has_dtor_ref();
+				let exaction_data = action.get_exaction_data();
 
-                match action.action_type {
-                    ExAction::EndOfList => {}
-                    ExAction::Branch => {
-                        let target_offset = read_uint16(&action.bytes, &mut data_offset, true);
+                match exaction_data {
+                    ExActionData::EndOfList => {}
+                    ExActionData::Branch {target_offset } => {
                         line += format!("Action: {target_offset:06X}").as_str();
                     }
-                    ExAction::DestroyLocal => {
-                        let local_offset = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DestroyLocal {local_offset, dtor_address: _} => {
                         line += format!("Local: {local_offset:#X}({local_reg_string})").as_str();
                     }
-                    ExAction::DestroyLocalCond => {
-                        let condition = read_uint16(&action.bytes, &mut data_offset, true);
-                        let local_offset = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DestroyLocalCond {condition, local_offset, dtor_address: _} => {
                         line += format!("Local: {local_offset:#X}({local_reg_string})").as_str();
 
                         //The action param is used to determine the type of reference for the condition (0: local offset, 1: register)
@@ -326,10 +539,7 @@ impl ExceptionTableData {
                             line += format!("\nCond: r{condition}").as_str();
                         }
                     }
-                    ExAction::DestroyLocalPointer => {
-                        let local_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
-
+                    ExActionData::DestroyLocalPointer {local_pointer, dtor_address: _} => {
                         let mode = action.action_param >> 7;
                         if mode == 0 {
                             //Local offset
@@ -339,30 +549,26 @@ impl ExceptionTableData {
                             line += format!("Pointer: r{local_pointer}").as_str();
                         }
                     }
-                    ExAction::DestroyLocalArray => {
-                        let local_array = read_uint16(&action.bytes, &mut data_offset, true);
-                        let elements = read_uint16(&action.bytes, &mut data_offset, true);
-                        let element_size = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DestroyLocalArray {local_array, elements, element_size, dtor_address: _} => {
                         line += format!("Array: {local_array:#X}({local_reg_string})\nElements: {elements}\nSize: {element_size}").as_str();
                     }
-                    ExAction::DestroyBase | ExAction::DestroyMember => {
-                        let object_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        let member_offset = read_uint32(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DestroyBase {object_pointer, member_offset, dtor_address: _} => {
+						let mode = action.action_param >> 7;
+                        if mode == 0 {
+                            line += format!("Member: {object_pointer:#X}({local_reg_string})+{member_offset:#X}").as_str();
+                        } else {
+                            line += format!("Member: {member_offset:#X}(r{object_pointer})").as_str();
+                        }
+					},
+					ExActionData::DestroyMember {object_pointer, member_offset, dtor_address: _} => {
                         let mode = action.action_param >> 7;
                         if mode == 0 {
                             line += format!("Member: {object_pointer:#X}({local_reg_string})+{member_offset:#X}").as_str();
                         } else {
-                            //Register
                             line += format!("Member: {member_offset:#X}(r{object_pointer})").as_str();
                         }
                     }
-                    ExAction::DestroyMemberCond => {
-                        let condition = read_uint16(&action.bytes, &mut data_offset, true);
-                        let object_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        let member_offset = read_uint32(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DestroyMemberCond {condition, object_pointer, member_offset, dtor_address: _} => {
                         let mode = (action.action_param >> 6) & 1;
                         if mode == 0 {
                             line += format!("Member: {object_pointer:#X}({local_reg_string})+{member_offset:#X}").as_str();
@@ -379,13 +585,7 @@ impl ExceptionTableData {
                             line += format!("\nCond: r{condition}").as_str();
                         }
                     }
-                    ExAction::DestroyMemberArray => {
-                        let object_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        let member_offset = read_uint32(&action.bytes, &mut data_offset, true);
-                        let elements = read_uint32(&action.bytes, &mut data_offset, true);
-                        let element_size = read_uint32(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
-
+                    ExActionData::DestroyMemberArray {object_pointer, member_offset, elements, element_size, dtor_address: _} => {
                         let mode = action.action_param >> 7;
                         if mode == 0 {
                             //Local offset
@@ -396,9 +596,7 @@ impl ExceptionTableData {
                         }
                         line += format!("\nElements: {elements}\nSize: {element_size}").as_str();
                     }
-                    ExAction::DeletePointer => {
-                        let object_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DeletePointer {object_pointer, dtor_address: _} => {
                         let mode = action.action_param >> 7;
                         if mode == 0 {
                             //Local offset
@@ -408,10 +606,7 @@ impl ExceptionTableData {
                             line += format!("Pointer: r{object_pointer})").as_str();
                         }
                     }
-                    ExAction::DeletePointerCond => {
-                        let condition = read_uint16(&action.bytes, &mut data_offset, true);
-                        let object_pointer = read_uint16(&action.bytes, &mut data_offset, true);
-                        //let dtor_address = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::DeletePointerCond {condition, object_pointer, dtor_address: _} => {
                         let mode = (action.action_param >> 6) & 1;
                         if mode == 0 {
                             //Local offset
@@ -429,29 +624,17 @@ impl ExceptionTableData {
                             line += format!("\nCond: r{condition}").as_str();
                         }
                     }
-                    ExAction::CatchBlock => {
-                        data_offset += 2; //unused bytes?
-                        let catch_type = read_uint32(&action.bytes, &mut data_offset, true);
-                        let catch_pc_offset = read_uint16(&action.bytes, &mut data_offset, true);
-                        let cinfo_ref = read_uint16(&action.bytes, &mut data_offset, true);
+                    ExActionData::CatchBlock {unk0: _, catch_type, catch_pc_offset, cinfo_ref} => {
                         line += format!("Local: {cinfo_ref:#X}({local_reg_string})\nPC: {catch_pc_offset:08X}\ncatch_type_addr: {catch_type:08X}").as_str();
                     }
-                    ExAction::ActiveCatchBlock => {
-                        let cinfo_ref = read_uint16(&action.bytes, &mut data_offset, true);
+                    ExActionData::ActiveCatchBlock {cinfo_ref} => {
                         line += format!("Local: {cinfo_ref:#X}({local_reg_string})").as_str();
                     }
-                    ExAction::Terminate => {}
-                    ExAction::Specification => {
-                        let specs = read_uint16(&action.bytes, &mut data_offset, true);
-                        let pc_offset = read_uint32(&action.bytes, &mut data_offset, true);
-                        let cinfo_ref = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::Terminate => {}
+                    ExActionData::Specification {specs, pc_offset, cinfo_ref} => {
                         line += format!("Local: {cinfo_ref:#X}({local_reg_string})\nPC: {pc_offset:08X}\nTypes: {specs}").as_str();
                     }
-                    ExAction::CatchBlock32 => {
-                        data_offset += 2; //unused bytes?
-                        let catch_type = read_uint32(&action.bytes, &mut data_offset, true);
-                        let catch_pc_offset = read_uint32(&action.bytes, &mut data_offset, true);
-                        let cinfo_ref = read_uint32(&action.bytes, &mut data_offset, true);
+                    ExActionData::CatchBlock32 {unk0: _, catch_type, catch_pc_offset, cinfo_ref} => {
                         line += format!("Local: {cinfo_ref:#X}({local_reg_string})\nPC: {catch_pc_offset:08X}\ncatch_type_addr: {catch_type:08X}").as_str();
                     }
                 }
@@ -507,24 +690,24 @@ impl ExtabDecoder {
         }    
 
         //Parse the header flag value
-        self.extab_data.flag_val = read_uint16(&self.data, &mut self.offset, true);
+        self.extab_data.flag_val = mem_utils::read_uint16(&self.data, &mut self.offset, true);
         self.extab_data.calculate_flag_values();
-        self.extab_data.et_field = read_uint16(&self.data, &mut self.offset, true);
+        self.extab_data.et_field = mem_utils::read_uint16(&self.data, &mut self.offset, true);
         
         //Check whether the table is 8 bytes but the terminator isn't zero. If so,
         //throw an error.
-        let terminator = read_uint32(&self.data, &mut self.offset, false);
+        let terminator = mem_utils::read_uint32(&self.data, &mut self.offset, false);
         if self.length == 8 && terminator != 0 {
             bail!("Error: Invalid extab table, table is 8 bytes long but terminator is not zero.");
         }
 
         //Parse range entries until we hit the terminator (32 bit zero value)
-        while read_uint32(&self.data, &mut self.offset, false) != 0 {
+        while mem_utils::read_uint32(&self.data, &mut self.offset, false) != 0 {
             let mut pcaction = PCAction::new();
-            pcaction.start_pc = read_uint32(&self.data, &mut self.offset, true);
-            let range_size: u32 = (read_uint16(&self.data, &mut self.offset, true) as u32) * 4; //range size is encoded as size >> 2
+            pcaction.start_pc = mem_utils::read_uint32(&self.data, &mut self.offset, true);
+            let range_size: u32 = (mem_utils::read_uint16(&self.data, &mut self.offset, true) as u32) * 4; //range size is encoded as size >> 2
             pcaction.end_pc = pcaction.start_pc + range_size;
-            pcaction.action_offset = read_uint16(&self.data, &mut self.offset, true) as u32;
+            pcaction.action_offset = mem_utils::read_uint16(&self.data, &mut self.offset, true) as u32;
             self.extab_data.pc_actions.push(pcaction);
         }
 
@@ -542,10 +725,10 @@ impl ExtabDecoder {
     fn parse_action_entry(&mut self) -> Result<()> {
         let mut exaction = ExceptionAction::new();
         exaction.action_offset = self.offset as u32;
-        let action_type_byte = read_byte(&self.data, &mut self.offset, true);
+        let action_type_byte = mem_utils::read_byte(&self.data, &mut self.offset, true);
         exaction.has_end_bit = (action_type_byte & 0x80) != 0;
         exaction.action_type = ExAction::from_int((action_type_byte & 0x7F) as i32)?;
-        exaction.action_param = read_byte(&self.data, &mut self.offset, true);
+        exaction.action_param = mem_utils::read_byte(&self.data, &mut self.offset, true);
 
         //Since the way action data is stored is too varied, we just store the remaining data as a byte
         //array to be used later.
@@ -594,7 +777,7 @@ impl ExtabDecoder {
             ExAction::Specification => {
                 size = 10;
                 //Calculate the length of the array, and add it to the base size
-                let length = read_uint16(&self.data, &mut self.offset, false) as i32;
+                let length = mem_utils::read_uint16(&self.data, &mut self.offset, false) as i32;
                 size += length * 4;
             }
             ExAction::CatchBlock32 => {

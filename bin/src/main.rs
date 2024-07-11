@@ -1,4 +1,4 @@
-use cwextab::{decode_extab, ExceptionTableData};
+use cwextab::*;
 
 
 //Test code
@@ -80,6 +80,16 @@ fn test_decode(){
     };
     
     println!("{}", text);
+
+	let smth = data.exception_actions[0].get_exaction_data();
+	match smth {
+		ExActionData::EndOfList => {
+			println!("Banana");
+		},
+		_ => {
+			println!(":3");
+		}
+	}
 }
 
 fn main() {
