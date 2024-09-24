@@ -1,6 +1,6 @@
 [package]
 name = "cwextab-bin"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["Amber Brault <celestialamber1@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -10,4 +10,4 @@ description = "CodeWarrior Exception Table decoder (binary)"
 rust-version = "1.58"
 
 [dependencies]
-cwextab = { path = "../lib", version = "0.2.3" }
+cwextab = { path = "../lib", version = "0.3.0" }
