@@ -1,6 +1,6 @@
 [package]
 name = "cwextab"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = ["Amber Brault <celestialamber1@gmail.com>"]
 license = "MIT OR Apache-2.0"

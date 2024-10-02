@@ -910,6 +910,9 @@ impl ExtabDecoder {
         let mut size: i32;
 
         match exaction.action_type {
+            ExAction::EndOfList => {
+                size = 0;
+            }
             ExAction::Branch => {
                 size = 2;
             }
@@ -957,12 +960,6 @@ impl ExtabDecoder {
             }
             ExAction::CatchBlock32 => {
                 size = 14;
-            }
-            _ => {
-                return Err(ExtabDecodeError::InvalidActionValue(
-                    action_type_value,
-                    exaction.action_offset,
-                ));
             }
         }
 

@@ -10,4 +10,4 @@ description = "CodeWarrior Exception Table decoder (binary)"
 rust-version = "1.58"
 
 [dependencies]
-cwextab = { path = "../lib", version = "1.0.0" }
+cwextab = { path = "../lib", version = "1.0.1" }

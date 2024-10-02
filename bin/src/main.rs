@@ -14,7 +14,6 @@ fn test_decode(data: &[u8], funcs: Vec<String>) {
             );
         }
     };
-    println!("{}", data.pc_actions[0].action_offset);
 
     //Convert the table struct to a string and print it.
     let result = data.to_string(funcs);
