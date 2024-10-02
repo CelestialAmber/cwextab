@@ -257,7 +257,7 @@ impl ExceptionAction {
     }
 
     /// Returns the relocation data for the dtor function in this action entry, if any.
-    pub fn get_dtor_relocation(&self) -> Option<Relocation> {
+    pub fn get_dtor_relocation(&self) -> Option<(u32, u32)> {
         if !self.has_dtor_ref() {
             //If the action entry doesn't have a dtor reference, return none
             return None;
@@ -272,8 +272,7 @@ impl ExceptionAction {
         };
 
         let address: u32 = mem_utils::read_uint32(&self.bytes, &mut (offset as i32), true);
-        let reloc = Relocation { offset, address };
-        Some(reloc)
+        Some((offset, address))
     }
 
     /// Decodes the action data from the byte array depending on the set action type, and converts it
@@ -971,7 +970,7 @@ impl ExtabDecoder {
         //Check if the action entry has a dtor reference. If so, get the relocation information from it,
         //and add it to the list.
         if exaction.has_dtor_ref() {
-            let reloc = match exaction.get_dtor_relocation() {
+            let (offset, addr) = match exaction.get_dtor_relocation() {
                 Some(val) => val,
                 None => {
                     //If None was returned even though the action should have a reference, return an error
@@ -979,6 +978,8 @@ impl ExtabDecoder {
                 }
             };
 
+            let reloc_offset: u32 = (start_index as u32) + offset;
+            let reloc = Relocation { offset: reloc_offset, address: addr };
             self.extab_data.relocations.push(reloc);
         }
 
