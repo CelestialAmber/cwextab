@@ -3,7 +3,7 @@ use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-fn test_decode(data: &[u8], funcs: &[&str]) {
+fn test_decode(data: &[u8], funcs: Vec<String>) {
     let result = decode_extab(data);
     let data: ExceptionTableData = match result {
         Ok(val) => val,
@@ -28,6 +28,12 @@ fn test_decode(data: &[u8], funcs: &[&str]) {
     println!("{}", text);
 }
 
+fn read_all_lines_from_file(path: &str) -> Vec<String> {
+    let file = File::open(path).expect(&format!("Failed to open file \"{}\"", path));
+    let reader = BufReader::new(file);
+    reader.lines().map(|line| line.expect("Could not parse line")).collect()
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -35,29 +41,30 @@ fn main() {
         let mut table_bytes: Vec<u8> = vec![];
         let mut func_names: Vec<String> = vec![];
 
-        let file = File::open(&args[1]).unwrap_or_else(
-            |_| panic!("Failed to open file \"{}\"", args[1]));
-        let reader = BufReader::new(file);
-        let lines = reader.lines();
+        let lines = read_all_lines_from_file(&args[1]);
 
         //println!("Lines: {}", num_lines);
 
         //Parse the table in the given text file
         for line in lines {
-            let cur_line: String =
-                line.expect("Idk why tf expect is needed here, never using Rust again i stg");
+            let cur_line: String = line;
             let parts: Vec<&str> = cur_line.trim().split(' ').collect();
 
-            if !parts[0].starts_with(".4byte") {
+            let data_size: u32 =
+            if parts[0].starts_with(".4byte") {
+                4
+            } else if parts[0].starts_with(".2byte") {
+                2
+            } else {
                 println!("Error: Invalid line in table, must start with .4byte");
                 return;
-            }
+            };
 
             let value: String = parts[1].to_string();
 
-            let mut line_val: u32 = 0; //32 bit value for current line
+            let mut line_val: u32 = 0; //Value for current line (16/32 bit)
 
-            //32 bit value
+            //Hex value
             if let Some(hex_string) = value.strip_prefix("0x") {
                 line_val = u32::from_str_radix(hex_string, 16).expect("Failed to parse hex value");
             } else {
@@ -72,14 +79,17 @@ fn main() {
                 func_names.push(func_name);
             }
 
-            let bytes = line_val.to_be_bytes();
-            table_bytes.extend_from_slice(&bytes);
+            let bytes: &[u8] =
+            if data_size == 4 {
+                &line_val.to_be_bytes()
+            } else {
+                let u16_val: u16 = line_val as u16;
+                &u16_val.to_be_bytes()
+            };
+            table_bytes.extend_from_slice(bytes);
         }
 
-        //Rust's stupid borrow bs has left me no choice ;<
-        let str_array: Vec<&str> = func_names.iter().map(String::as_str).collect();
-
-        test_decode(&table_bytes, &str_array);
+        test_decode(&table_bytes, func_names);
     } else {
         println!("Usage: cwextab-bin <file>");
     }

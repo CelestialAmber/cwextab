@@ -10,6 +10,8 @@ pub enum ExtabDecodeError {
     InvalidActionValue(u32, u32),
     #[error("Table is 8 bytes long but terminator is not zero.")]
     InvalidSmallTableTerminator,
+    #[error("Internal error")]
+    Internal,
 }
 
 /// Enum holding the data for each action type.
@@ -233,6 +235,47 @@ impl ExceptionAction {
         }
     }
 
+    /// Calculates the offset of the dtor function address value in this action entry.
+    /// If the entry does not have one, this function returns none.
+    fn get_dtor_address_value_offset(&self) -> Option<u32> {
+        let offset: u32 =
+        match self.action_type {
+            ExAction::DestroyLocal => 2,
+            ExAction::DestroyLocalCond => 6,
+            ExAction::DestroyLocalPointer => 2,
+            ExAction::DestroyLocalArray => 6,
+            ExAction::DestroyBase
+            | ExAction::DestroyMember => 6,
+            ExAction::DestroyMemberCond => 10,
+            ExAction::DestroyMemberArray => 14,
+            ExAction::DeletePointer => 2,
+            ExAction::DeletePointerCond => 6,
+            _ => return None,
+        };
+
+        Some(offset)
+    }
+
+    /// Returns the relocation data for the dtor function in this action entry, if any.
+    pub fn get_dtor_relocation(&self) -> Option<Relocation> {
+        if !self.has_dtor_ref() {
+            //If the action entry doesn't have a dtor reference, return none
+            return None;
+        }
+
+        let offset: u32 = match self.get_dtor_address_value_offset() {
+            Some(val) => val,
+            None => {
+                println!("Error: tried to get dtor address value offset for table which doesn't have it");
+                return None;
+            }
+        };
+
+        let address: u32 = mem_utils::read_uint32(&self.bytes, &mut (offset as i32), true);
+        let reloc = Relocation { offset, address };
+        Some(reloc)
+    }
+
     /// Decodes the action data from the byte array depending on the set action type, and converts it
     /// to an ExActionData enum containing the decoded data.
     pub fn get_exaction_data(&self) -> ExActionData {
@@ -433,6 +476,13 @@ impl Default for PCAction {
     }
 }
 
+/// Struct for exception table relocation (always dtor function address)
+#[derive(Debug, Clone)]
+pub struct Relocation {
+    pub offset: u32,
+    pub address: u32,
+}
+
 /// Struct containing all the data from the decoded exception table.
 #[derive(Debug, Clone)]
 pub struct ExceptionTableData {
@@ -449,6 +499,7 @@ pub struct ExceptionTableData {
 
     pub pc_actions: Vec<PCAction>,
     pub exception_actions: Vec<ExceptionAction>,
+    pub relocations: Vec<Relocation>,
 }
 
 impl ExceptionTableData {
@@ -464,6 +515,7 @@ impl ExceptionTableData {
             et_field: 0,
             pc_actions: vec![],
             exception_actions: vec![],
+            relocations: vec![],
         }
     }
 
@@ -480,7 +532,7 @@ impl ExceptionTableData {
     /// names required for the table.
     ///
     /// Returns 'None' if an error occurs.
-    pub fn to_string(&self, func_names: &[&str]) -> Option<String> {
+    pub fn to_string(&self, func_names: Vec<String>) -> Option<String> {
         let mut sb = String::from("");
 
         sb += "Flag values:\n";
@@ -756,7 +808,7 @@ impl ExceptionTableData {
                         println!("Error: Invalid function array index");
                         return None;
                     }
-                    let func_name = func_names[func_index];
+                    let func_name = func_names[func_index].as_str();
                     line += format!("\nDtor: \"{func_name}\"").as_str();
                     func_index += 1;
                 }
@@ -918,6 +970,20 @@ impl ExtabDecoder {
         let end_index = (self.offset + size) as usize;
         exaction.bytes = self.data[start_index..end_index].into();
         self.offset += size;
+
+        //Check if the action entry has a dtor reference. If so, get the relocation information from it,
+        //and add it to the list.
+        if exaction.has_dtor_ref() {
+            let reloc = match exaction.get_dtor_relocation() {
+                Some(val) => val,
+                None => {
+                    //If None was returned even though the action should have a reference, return an error
+                    return Err(ExtabDecodeError::Internal);
+                }
+            };
+
+            self.extab_data.relocations.push(reloc);
+        }
 
         self.extab_data.exception_actions.push(exaction);
         Ok(())
