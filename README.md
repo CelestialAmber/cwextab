@@ -17,9 +17,9 @@ use cwextab::*;
 fn example(extab: &[u8]){
   let result = decode_extab(extab);
   let data = match result {
-    Some(val) => val,
-    None => {
-      panic!("An error happened");
+    Ok(val) => val,
+    Err(e) => {
+      panic!("An error happened: {}", e);
     },
   };
   //do stuffs
