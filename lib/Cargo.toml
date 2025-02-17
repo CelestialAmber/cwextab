@@ -1,6 +1,6 @@
 [package]
 name = "cwextab"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["Amber Brault <celestialamber1@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -8,6 +8,7 @@ repository = "https://github.com/Celestialamber/cwextab"
 readme = "../README.md"
 description = "CodeWarrior Exception Table decoder"
 rust-version = "1.58"
+categories = ["no-std"]
 
 [dependencies]
-thiserror = "1.0.64"
+thiserror = { version = "2.0", default-features = false }

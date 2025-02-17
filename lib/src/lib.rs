@@ -1,3 +1,9 @@
+#![no_std]
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::{format, vec};
+use alloc::vec::Vec;
 use thiserror::Error;
 
 mod mem_utils;
@@ -263,7 +269,6 @@ impl ExceptionAction {
         let offset: u32 = match self.get_dtor_address_value_offset() {
             Some(val) => val,
             None => {
-                println!("Error: tried to get dtor address value offset for table which doesn't have it");
                 return None;
             }
         };
@@ -801,12 +806,12 @@ impl ExceptionTableData {
                 //If the action references a dtor, print it out using the name array
                 if has_dtor_ref {
                     if func_index >= func_names.len() {
-                        println!("Error: Invalid function array index");
-                        return None;
+                        line += "Error: Invalid function array index\n";
+                    } else {
+                        let func_name = func_names[func_index].as_str();
+                        line += format!("Dtor: \"{func_name}\"\n").as_str();
+                        func_index += 1;
                     }
-                    let func_name = func_names[func_index].as_str();
-                    line += format!("Dtor: \"{func_name}\"\n").as_str();
-                    func_index += 1;
                 }
 
                 if action.has_end_bit {
