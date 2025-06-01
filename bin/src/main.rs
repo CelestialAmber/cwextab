@@ -24,6 +24,16 @@ fn test_decode(data: &[u8], funcs: Vec<String>) {
         }
     };
 
+    //Print out raw action bytes/test zeroing padding
+    let ex_actions = &data.exception_actions;
+    for _i in 0..ex_actions.len() {
+        println!("Exception action {} bytes (w/o zeroing padding):", _i);
+        println!("{:X?}", ex_actions[_i].get_exaction_bytes(false));
+        println!("Exception action {} bytes (with zeroing padding):", _i);
+        println!("{:X?}", ex_actions[_i].get_exaction_bytes(true));
+    }
+    println!();
+
     println!("{}", text);
 }
 

@@ -21,6 +21,9 @@ pub enum ExtabDecodeError {
 }
 
 /// Enum holding the data for each action type.
+/// 
+/// Note: Some entries have padding bytes due to 4 byte struct alignment. This causes issues on earlier versions of
+/// MWCC (around 1.0 to 2.6) which don't properly zero all the data out :p
 #[derive(Debug, Clone)]
 pub enum ExActionData {
     EndOfList,
@@ -34,7 +37,7 @@ pub enum ExActionData {
     DestroyLocalCond {
         condition: u16,
         local_offset: u16,
-        unk4: u16,
+        pad4: u16,
         dtor_address: u32,
     },
     DestroyLocalPointer {
@@ -61,7 +64,7 @@ pub enum ExActionData {
         condition: u16,
         object_pointer: u16,
         member_offset: u32,
-        unk8: u16,
+        pad8: u16,
         dtor_address: u32,
     },
     DestroyMemberArray {
@@ -78,11 +81,11 @@ pub enum ExActionData {
     DeletePointerCond {
         condition: u16,
         object_pointer: u16,
-        unk4: u16,
+        pad4: u16,
         dtor_address: u32,
     },
     CatchBlock {
-        unk0: u16,
+        pad0: u16,
         catch_type: u32,
         catch_pc_offset: u16,
         cinfo_ref: u16,
@@ -98,7 +101,7 @@ pub enum ExActionData {
         spec: Vec<u32>,
     },
     CatchBlock32 {
-        unk0: u16,
+        pad0: u16,
         catch_type: u32,
         catch_pc_offset: u32,
         cinfo_ref: u32,
@@ -210,7 +213,7 @@ pub struct ExceptionAction {
     pub action_type: ExAction, //0x0
     pub action_param: u8,      //0x1
     pub has_end_bit: bool,     //true if action type byte has bit 7 set (type & 0x80)
-    pub bytes: Vec<u8>,
+    pub bytes: Vec<u8>, //0x2-
 }
 
 impl ExceptionAction {
@@ -259,6 +262,33 @@ impl ExceptionAction {
         Some(offset)
     }
 
+    /// Returns the offset off the padding data in the action data, if any.
+    /// 
+    /// Note: if the data has padding, it is always 2 bytes.
+    pub fn get_struct_padding_offset(&self) -> Option<u32> {
+        let offset: u32 =
+        match self.action_type {
+            ExAction::DestroyLocalCond => 4,
+            ExAction::DestroyMemberCond => 8,
+            ExAction::DeletePointerCond => 4,
+            ExAction::CatchBlock
+            | ExAction::CatchBlock32 => 0,
+            _ => return None,
+        };
+
+        Some(offset + 2) //Add 2 to get the actual offset
+    }
+
+    /// Calculates this action's action type byte.
+    fn calculate_action_type_byte(&self) -> u8 {
+        let mut action_type_byte : u8 = 0;
+        if self.has_end_bit {
+            action_type_byte |= 0x80;
+        }
+        action_type_byte |= self.action_type.to_int() as u8;
+        return action_type_byte;
+    }
+
     /// Returns the relocation data for the dtor function in this action entry, if any.
     pub fn get_dtor_relocation(&self) -> Option<(u32, u32)> {
         if !self.has_dtor_ref() {
@@ -275,6 +305,30 @@ impl ExceptionAction {
 
         let address: u32 = mem_utils::read_uint32(&self.bytes, &mut (offset as i32), true);
         Some((offset, address))
+    }
+
+    /// Returns the raw bytes for this action, with the option for zeroing out padding bytes.
+    pub fn get_exaction_bytes(&self, zero_padding : bool) -> Vec<u8> {
+        let mut bytes : Vec<u8> = vec![];
+
+        bytes.push(self.calculate_action_type_byte());
+        bytes.push(self.action_param);
+        //Push the action specific data to the list, then zero out padding bytes if requested/any exist
+        let length : usize = self.bytes.len();
+        for _i in 0..length {
+            bytes.push(self.bytes[_i]);
+        }
+
+        if zero_padding {
+            if let Some(padding_offset) = self.get_struct_padding_offset() {
+                let offset : usize = padding_offset as usize;
+                //Zero out the padding bytes
+                bytes[offset] = 0;
+                bytes[offset + 1] = 0;
+            }
+        }
+
+        return bytes;
     }
 
     /// Decodes the action data from the byte array depending on the set action type, and converts it
@@ -299,12 +353,12 @@ impl ExceptionAction {
             ExAction::DestroyLocalCond => {
                 let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let local_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
-                let unk4 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let pad4 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 ExActionData::DestroyLocalCond {
                     condition,
                     local_offset,
-                    unk4,
+                    pad4,
                     dtor_address,
                 }
             }
@@ -352,13 +406,13 @@ impl ExceptionAction {
                 let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let member_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
-                let unk8 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let pad8 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 ExActionData::DestroyMemberCond {
                     condition,
                     object_pointer,
                     member_offset,
-                    unk8,
+                    pad8,
                     dtor_address,
                 }
             }
@@ -387,22 +441,22 @@ impl ExceptionAction {
             ExAction::DeletePointerCond => {
                 let condition = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let object_pointer = mem_utils::read_uint16(&self.bytes, &mut offset, true);
-                let unk4 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let pad4 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let dtor_address = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 ExActionData::DeletePointerCond {
                     condition,
                     object_pointer,
-                    unk4,
+                    pad4,
                     dtor_address,
                 }
             }
             ExAction::CatchBlock => {
-                let unk0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let pad0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let catch_type = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 let catch_pc_offset = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let cinfo_ref = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 ExActionData::CatchBlock {
-                    unk0,
+                    pad0,
                     catch_type,
                     catch_pc_offset,
                     cinfo_ref,
@@ -432,12 +486,12 @@ impl ExceptionAction {
                 }
             }
             ExAction::CatchBlock32 => {
-                let unk0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
+                let pad0 = mem_utils::read_uint16(&self.bytes, &mut offset, true);
                 let catch_type = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 let catch_pc_offset = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 let cinfo_ref = mem_utils::read_uint32(&self.bytes, &mut offset, true);
                 ExActionData::CatchBlock32 {
-                    unk0,
+                    pad0,
                     catch_type,
                     catch_pc_offset,
                     cinfo_ref,
