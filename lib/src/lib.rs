@@ -263,9 +263,8 @@ impl ExceptionAction {
     }
 
     /// Returns the offset off the padding data in the action data, if any.
-    /// 
     /// Note: if the data has padding, it is always 2 bytes.
-    pub fn get_struct_padding_offset(&self) -> Option<u32> {
+    fn get_struct_padding_offset(&self) -> Option<u32> {
         let offset: u32 =
         match self.action_type {
             ExAction::DestroyLocalCond => 4,
@@ -581,6 +580,60 @@ impl ExceptionTableData {
         self.saved_cr = ((self.flag_val >> 5) & 1) == 1;
         self.fpr_save_range = ((self.flag_val >> 6) & 0b11111) as u32;
         self.gpr_save_range = ((self.flag_val >> 11) & 0b11111) as u32;
+    }
+
+    /// Determines if this table has any actions that have uninitialized padding.
+    pub fn has_uninitialized_action_padding(&self) -> bool {
+        let length = self.exception_actions.len() as usize;
+
+        //Check each action
+        for _i in 0..length {
+            let action = &self.exception_actions[_i];
+            //If the action has padding, and one of the bytes is nonzero, return early
+            if let Some(offset) = action.get_struct_padding_offset() {
+                let index = offset as usize;
+                if action.bytes[index] != 0 || action.bytes[index + 1] != 0 {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// Returns the raw data for this exception table. If clear_padding is set to
+    /// true, any uninitialized padding bytes in exception actions is cleared.
+    pub fn get_table_data(&self, clear_padding : bool) -> Vec<u8> {
+        let mut bytes : Vec<u8> = vec![];
+
+        //Add header values
+        mem_utils::write_uint16_vec(self.flag_val, &mut bytes);
+        mem_utils::write_uint16_vec(self.et_field, &mut bytes);
+
+        //Add PC actions
+        for _i in 0..self.pc_actions.len() {
+            let action = &self.pc_actions[_i];
+            //Recalculate range size
+            let start_pc: u32 = action.start_pc;
+            let range_size: u16 = ((action.end_pc - action.start_pc) / 4) as u16;
+            let action_offset: u16 = action.action_offset as u16;
+            mem_utils::write_uint32_vec(start_pc, &mut bytes);
+            mem_utils::write_uint16_vec(range_size, &mut bytes);
+            mem_utils::write_uint16_vec(action_offset, &mut bytes);
+        }
+
+        //Write the terminator
+        mem_utils::write_uint32_vec(0, &mut bytes);
+
+        //Add exception actions
+        for _i in 0..self.exception_actions.len() {
+            let action = &self.exception_actions[_i];
+            //Append the action data to the list
+            let mut action_data: Vec<u8> = action.get_exaction_bytes(clear_padding);
+            bytes.append(&mut action_data);
+        }
+
+        return bytes;
     }
 
     /// Converts the table into a string, taking in an array of the function

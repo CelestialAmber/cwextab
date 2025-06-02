@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader};
 
 fn test_decode(data: &[u8], funcs: Vec<String>) {
     let result = decode_extab(data);
-    let data: ExceptionTableData = match result {
+    let extab_data: ExceptionTableData = match result {
         Ok(val) => val,
         Err(e) => {
             panic!(
@@ -16,7 +16,7 @@ fn test_decode(data: &[u8], funcs: Vec<String>) {
     };
 
     //Convert the table struct to a string and print it.
-    let result = data.to_string(funcs);
+    let result = extab_data.to_string(funcs);
     let text: String = match result {
         Some(val) => val,
         None => {
@@ -24,8 +24,10 @@ fn test_decode(data: &[u8], funcs: Vec<String>) {
         }
     };
 
+    println!("{}", text);
+
     //Print out raw action bytes/test zeroing padding
-    let ex_actions = &data.exception_actions;
+    let ex_actions = &extab_data.exception_actions;
     for _i in 0..ex_actions.len() {
         println!("Exception action {} bytes (w/o zeroing padding):", _i);
         println!("{:X?}", ex_actions[_i].get_exaction_bytes(false));
@@ -34,7 +36,13 @@ fn test_decode(data: &[u8], funcs: Vec<String>) {
     }
     println!();
 
-    println!("{}", text);
+    //Print the raw extab data
+    println!("Raw extab data (w/o zeroing padding):");
+    println!("{:X?}", extab_data.get_table_data(false));
+    println!("Raw extab data (with zeroing padding):");
+    println!("{:X?}", extab_data.get_table_data(true));
+
+    assert_eq!(data.to_vec(), extab_data.get_table_data(false));
 }
 
 fn read_all_lines_from_file(path: &str) -> Vec<String> {
