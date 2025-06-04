@@ -264,7 +264,7 @@ impl ExceptionAction {
 
     /// Returns the offset off the padding data in the action data, if any.
     /// Note: if the data has padding, it is always 2 bytes.
-    fn get_struct_padding_offset(&self) -> Option<u32> {
+    pub fn get_struct_padding_offset(&self) -> Option<u32> {
         let offset: u32 =
         match self.action_type {
             ExAction::DestroyLocalCond => 4,
