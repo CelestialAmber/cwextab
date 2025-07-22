@@ -20,7 +20,7 @@ pub enum ExtabDecodeError {
     InvalidActionValue(u32, u32),
     #[error("Table is 8 bytes long but terminator is not zero.")]
     InvalidSmallTableTerminator,
-    #[error("Action at offset 0x{0:X} goes up to offset 0x{1:X}, but table data is only {2} bytes long")]
+    #[error("Action at offset 0x{0:X} goes up to index {1}, but table data is only {2} bytes long")]
     InvalidActionOffset(u32, u32, u32),
     #[error("Internal error")]
     Internal,
@@ -169,7 +169,7 @@ impl ExtabDecoder {
         let extab_length = self.data.len();
 
         //Make sure the array range is valid for the action
-        if start_index >= extab_length || end_index >= extab_length {
+        if start_index >= extab_length || end_index > extab_length {
             return Err(ExtabDecodeError::InvalidActionOffset(
                 start_index as u32,
                 end_index as u32,
