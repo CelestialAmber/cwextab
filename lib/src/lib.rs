@@ -164,9 +164,9 @@ impl ExtabDecoder {
             }
         }
 
-        let start_index = self.offset as usize;
-        let end_index = (self.offset + size) as usize;
-        let extab_length = self.data.len();
+        let start_index: usize = exaction.action_offset as usize;
+        let end_index: usize = start_index + (size as usize);
+        let extab_length: usize = self.data.len();
 
         //Make sure the array range is valid for the action
         if start_index >= extab_length || end_index > extab_length {
