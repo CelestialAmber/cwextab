@@ -164,14 +164,14 @@ impl ExtabDecoder {
             }
         }
 
-        let start_index: usize = exaction.action_offset as usize;
+        let start_index: usize = self.offset as usize;
         let end_index: usize = start_index + (size as usize);
         let extab_length: usize = self.data.len();
 
         //Make sure the array range is valid for the action
-        if start_index >= extab_length || end_index > extab_length {
+        if size > 0 && (start_index >= extab_length || end_index > extab_length) {
             return Err(ExtabDecodeError::InvalidActionOffset(
-                start_index as u32,
+                exaction.action_offset as u32,
                 end_index as u32,
                 extab_length as u32
             ));
